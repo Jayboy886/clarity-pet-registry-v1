@@ -8,19 +8,28 @@ import {
 import { assertEquals } from 'https://deno.land/std@0.90.0/testing/asserts.ts';
 
 Clarinet.test({
-    name: "Only contract owner can register new pets",
+    name: "Only contract owner can register new pets with traits",
     async fn(chain: Chain, accounts: Map<string, Account>) {
         const deployer = accounts.get('deployer')!;
         const wallet1 = accounts.get('wallet_1')!;
+        const traits = types.list([
+            types.ascii("friendly"),
+            types.ascii("energetic"),
+            types.ascii("loyal"),
+            types.ascii("smart"),
+            types.ascii("playful")
+        ]);
 
         let block = chain.mineBlock([
             Tx.contractCall('pet-registry', 'register-pet', [
                 types.ascii("Golden Retriever"),
-                types.uint(123456)
+                types.uint(123456),
+                traits
             ], deployer.address),
             Tx.contractCall('pet-registry', 'register-pet', [
                 types.ascii("Labrador"),
-                types.uint(789012)
+                types.uint(789012),
+                traits
             ], wallet1.address)
         ]);
 
@@ -30,18 +39,34 @@ Clarinet.test({
 });
 
 Clarinet.test({
-    name: "Can breed two owned pets",
+    name: "Can breed two owned pets and inherit traits",
     async fn(chain: Chain, accounts: Map<string, Account>) {
         const deployer = accounts.get('deployer')!;
+        const traits1 = types.list([
+            types.ascii("friendly"),
+            types.ascii("energetic"),
+            types.ascii("loyal"),
+            types.ascii("smart"),
+            types.ascii("playful")
+        ]);
+        const traits2 = types.list([
+            types.ascii("brave"),
+            types.ascii("gentle"),
+            types.ascii("patient"),
+            types.ascii("alert"),
+            types.ascii("curious")
+        ]);
 
         let block = chain.mineBlock([
             Tx.contractCall('pet-registry', 'register-pet', [
                 types.ascii("Golden Retriever"),
-                types.uint(123456)
+                types.uint(123456),
+                traits1
             ], deployer.address),
             Tx.contractCall('pet-registry', 'register-pet', [
                 types.ascii("Golden Retriever"),
-                types.uint(789012)
+                types.uint(789012),
+                traits2
             ], deployer.address)
         ]);
 
@@ -60,27 +85,39 @@ Clarinet.test({
 });
 
 Clarinet.test({
-    name: "Can transfer owned pets",
+    name: "Can list and buy pets through marketplace",
     async fn(chain: Chain, accounts: Map<string, Account>) {
         const deployer = accounts.get('deployer')!;
-        const wallet1 = accounts.get('wallet_1')!;
+        const buyer = accounts.get('wallet_1')!;
+        const traits = types.list([
+            types.ascii("friendly"),
+            types.ascii("energetic"),
+            types.ascii("loyal"),
+            types.ascii("smart"),
+            types.ascii("playful")
+        ]);
 
         let block = chain.mineBlock([
             Tx.contractCall('pet-registry', 'register-pet', [
                 types.ascii("Golden Retriever"),
-                types.uint(123456)
+                types.uint(123456),
+                traits
             ], deployer.address)
         ]);
 
         let petId = block.receipts[0].result.expectOk();
 
-        let transferBlock = chain.mineBlock([
-            Tx.contractCall('pet-registry', 'transfer-pet', [
+        let marketBlock = chain.mineBlock([
+            Tx.contractCall('pet-registry', 'set-pet-price', [
                 petId,
-                types.principal(wallet1.address)
-            ], deployer.address)
+                types.some(types.uint(1000000))
+            ], deployer.address),
+            Tx.contractCall('pet-registry', 'buy-pet', [
+                petId
+            ], buyer.address)
         ]);
 
-        transferBlock.receipts[0].result.expectOk();
+        marketBlock.receipts[0].result.expectOk();
+        marketBlock.receipts[1].result.expectOk();
     }
 });
