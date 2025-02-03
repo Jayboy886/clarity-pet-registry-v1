@@ -39,6 +39,72 @@ Clarinet.test({
 });
 
 Clarinet.test({
+    name: "Cannot breed same pet with itself",
+    async fn(chain: Chain, accounts: Map<string, Account>) {
+        const deployer = accounts.get('deployer')!;
+        const traits = types.list([
+            types.ascii("friendly"),
+            types.ascii("energetic"),
+            types.ascii("loyal"),
+            types.ascii("smart"),
+            types.ascii("playful")
+        ]);
+
+        let block = chain.mineBlock([
+            Tx.contractCall('pet-registry', 'register-pet', [
+                types.ascii("Golden Retriever"),
+                types.uint(123456),
+                traits
+            ], deployer.address)
+        ]);
+
+        let petId = block.receipts[0].result.expectOk();
+
+        let breedBlock = chain.mineBlock([
+            Tx.contractCall('pet-registry', 'breed-pets', [
+                petId,
+                petId
+            ], deployer.address)
+        ]);
+
+        breedBlock.receipts[0].result.expectErr(types.uint(106)); // err-same-pet
+    }
+});
+
+Clarinet.test({
+    name: "Cannot set invalid pet price",
+    async fn(chain: Chain, accounts: Map<string, Account>) {
+        const deployer = accounts.get('deployer')!;
+        const traits = types.list([
+            types.ascii("friendly"),
+            types.ascii("energetic"),
+            types.ascii("loyal"),
+            types.ascii("smart"),
+            types.ascii("playful")
+        ]);
+
+        let block = chain.mineBlock([
+            Tx.contractCall('pet-registry', 'register-pet', [
+                types.ascii("Golden Retriever"),
+                types.uint(123456),
+                traits
+            ], deployer.address)
+        ]);
+
+        let petId = block.receipts[0].result.expectOk();
+
+        let priceBlock = chain.mineBlock([
+            Tx.contractCall('pet-registry', 'set-pet-price', [
+                petId,
+                types.some(types.uint(0))
+            ], deployer.address)
+        ]);
+
+        priceBlock.receipts[0].result.expectErr(types.uint(105)); // err-invalid-price
+    }
+});
+
+Clarinet.test({
     name: "Can breed two owned pets and inherit traits",
     async fn(chain: Chain, accounts: Map<string, Account>) {
         const deployer = accounts.get('deployer')!;
