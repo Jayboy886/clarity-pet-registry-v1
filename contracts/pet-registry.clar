@@ -1,7 +1,7 @@
 ;; Pet Registry Contract
 (define-non-fungible-token pet uint)
 
-;; Data structures
+;; Data structures 
 (define-map pet-info
     uint 
     {
@@ -23,8 +23,10 @@
 (define-constant err-invalid-pet (err u102))
 (define-constant err-not-for-sale (err u103))
 (define-constant err-insufficient-funds (err u104))
+(define-constant err-invalid-price (err u105))
+(define-constant err-same-pet (err u106))
 
-;; Data vars
+;; Events
 (define-data-var last-pet-id uint u0)
 
 ;; Private functions
@@ -63,6 +65,7 @@
                     price: none
                 })
                 (var-set last-pet-id new-id)
+                (print {event: "pet-registered", id: new-id, breed: breed})
                 (ok new-id)
             )
             err-not-authorized
@@ -78,6 +81,7 @@
         (new-dna (/ (+ (get dna pet1) (get dna pet2)) u2))
         (new-traits (calculate-traits (get traits pet1) (get traits pet2)))
     )
+        (asserts! (not (is-eq pet1-id pet2-id)) err-same-pet)
         (if (and
             (is-eq (get owner pet1) tx-sender)
             (is-eq (get owner pet2) tx-sender)
@@ -95,6 +99,7 @@
                     price: none
                 })
                 (var-set last-pet-id new-id)
+                (print {event: "pets-bred", child: new-id, parent1: pet1-id, parent2: pet2-id})
                 (ok new-id)
             )
             err-not-authorized
@@ -104,9 +109,14 @@
 
 (define-public (set-pet-price (id uint) (new-price (optional uint)))
     (let ((pet (unwrap! (map-get? pet-info id) err-invalid-pet)))
+        (asserts! (and 
+            (is-some new-price)
+            (> (unwrap! new-price err-invalid-price) u0)
+        ) err-invalid-price)
         (if (is-eq (get owner pet) tx-sender)
             (begin
                 (map-set pet-info id (merge pet { price: new-price }))
+                (print {event: "price-set", id: id, price: new-price})
                 (ok true)
             )
             err-not-authorized
@@ -124,6 +134,7 @@
                 (try! (stx-transfer? sale-price tx-sender (get owner pet)))
                 (try! (nft-transfer? pet id (get owner pet) tx-sender))
                 (map-set pet-info id (merge pet { owner: tx-sender, price: none }))
+                (print {event: "pet-sold", id: id, price: sale-price, from: (get owner pet), to: tx-sender})
                 (ok true)
             )
             err-insufficient-funds
@@ -137,6 +148,7 @@
             (begin
                 (try! (nft-transfer? pet id tx-sender recipient))
                 (map-set pet-info id (merge pet { owner: recipient }))
+                (print {event: "pet-transferred", id: id, from: tx-sender, to: recipient})
                 (ok true)
             )
             err-not-authorized
